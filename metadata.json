@@ -1,0 +1,5 @@
+{
+  "name": "WANimate Automation Studio",
+  "description": "Workflow automation tool for mass-producing AI Reels using Gemini Nano Banana and Fal.ai WAN 2.2.",
+  "requestFramePermissions": []
+}
