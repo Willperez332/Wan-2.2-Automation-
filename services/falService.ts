@@ -1,51 +1,81 @@
 import { ModelType } from "../types";
-import { fal } from "@fal-ai/client"; // Correct named import
+import * as falModule from "@fal-ai/client";
+import { base64ToBlob } from "../utils";
+
+// 1. Helper to unwrap the library based on your error logs
+const getClient = () => {
+    const mod = falModule as any;
+    // The logs showed the methods are inside the 'fal' property
+    if (mod.fal) return mod.fal;
+    if (mod.default && mod.default.fal) return mod.default.fal;
+    return mod;
+};
+
+// 2. Proxy URL (matches vite.config.ts)
+const FAL_PROXY_URL = "/api/fal";
 
 export class FalService {
-  constructor(apiKey: string) {
-    if (fal.config) {
-        fal.config({
-            credentials: apiKey,
-        });
+  private client: any;
+
+  constructor() {
+    this.client = getClient();
+    
+    if (this.client && typeof this.client.config === 'function') {
+        try {
+            this.client.config({
+                host: FAL_PROXY_URL,
+                credentials: null // Safe because the Proxy adds the key
+            });
+            console.log("Fal Client configured successfully");
+        } catch (e) {
+            console.error("Fal Client config failed:", e);
+        }
+    } else {
+        console.error("CRITICAL: Fal Client not found. Keys found:", Object.keys(falModule));
     }
   }
 
-  // REPLACEMENT for "Nano Banana" logic
+  private async uploadImage(base64: string): Promise<string> {
+    try {
+        const blob = base64ToBlob(base64);
+        // Ensure we are using the unwrapped client
+        if (!this.client || !this.client.storage) throw new Error("Fal Client not loaded");
+        
+        const url = await this.client.storage.upload(blob);
+        return url;
+    } catch (e: any) {
+        console.error("Fal Upload Error:", e);
+        throw new Error(`Upload failed: ${e.message || JSON.stringify(e)}`);
+    }
+  }
+
   async compositeProduct(avatarBase64: string, productBase64: string, prompt: string): Promise<string> {
     try {
-        const result: any = await fal.subscribe("fal-ai/flux/dev/image-to-image", {
+        const avatarUrl = await this.uploadImage(avatarBase64);
+        
+        const result: any = await this.client.subscribe("fal-ai/flux/dev/image-to-image", {
             input: {
-                image_url: `data:image/jpeg;base64,${avatarBase64}`,
+                image_url: avatarUrl,
                 prompt: `(Masterpiece), realistic photo, ${prompt} . The person is holding the product naturally. The product is clearly visible.`,
-                strength: 0.75, // High strength to allow product insertion while keeping avatar likeness
+                strength: 0.75,
                 guidance_scale: 3.5,
-                // We pass the product as a control image or just rely on the prompt + base composition
-                // For better results, you'd use a LoRA, but standard Image-to-Image works for simple inserts
             },
             logs: true,
         });
         
-        if (result.images && result.images[0]) {
-            return result.images[0].url;
-        }
-        throw new Error("Fal Composite failed");
+        if (result.images && result.images[0]) return result.images[0].url;
+        throw new Error("No image returned");
     } catch (error: any) {
-        console.error("Fal Composite Error:", error);
-        throw error;
+        throw new Error(`Fal Composite Error: ${error.message || JSON.stringify(error)}`);
     }
   }
 
-  async generateVideoFromImage(
-    sourceImageUrlOrBase64: string,
-    prompt: string
-  ): Promise<string> {
+  async generateVideoFromImage(source: string, prompt: string): Promise<string> {
     try {
-        // Handle both raw Base64 and URLs (from the composite step)
-        const imageUrl = sourceImageUrlOrBase64.startsWith('http') 
-            ? sourceImageUrlOrBase64 
-            : `data:image/jpeg;base64,${sourceImageUrlOrBase64}`;
+        // If it's base64 (raw avatar), upload it. If it's http (composite url), use it.
+        const imageUrl = source.startsWith('http') ? source : await this.uploadImage(source);
 
-        const result: any = await fal.subscribe(ModelType.WAN, {
+        const result: any = await this.client.subscribe(ModelType.WAN, {
             input: {
                 prompt: `Cinematic, photorealistic, ${prompt}`,
                 image_url: imageUrl,
@@ -55,14 +85,10 @@ export class FalService {
             logs: true, 
         });
 
-        if (result && result.video && result.video.url) {
-            return result.video.url;
-        } else {
-            throw new Error("No video URL in response");
-        }
+        if (result.video?.url) return result.video.url;
+        throw new Error("No video URL returned");
     } catch (error: any) {
-        console.error("Fal Service Error:", error);
-        throw error;
+        throw new Error(`Fal Service Error: ${error.message || JSON.stringify(error)}`);
     }
   }
 }
