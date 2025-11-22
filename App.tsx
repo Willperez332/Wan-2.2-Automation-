@@ -119,28 +119,28 @@ const App: React.FC = () => {
             let sourceImageBase64 = '';
             let finalPrompt = clip.description;
 
-            // LOGIC A: Clip contains product (Transition/Nano Banana Step)
-            if (clip.containsProduct && state.productImage && state.avatarImage && geminiService) {
-                 // 1. Get base assets
+// ... inside handleGenerate loop ...
+
+            // LOGIC A: Clip contains product (The "Handoff" Step)
+            if (clip.containsProduct && state.productImage && state.avatarImage) {
                  const avatarB64 = await fileToBase64(state.avatarImage);
                  const productB64 = await fileToBase64(state.productImage);
                  
-                 // 2. Nano Banana Composition (Gemini)
+                 // Use FAL (Flux) instead of Gemini for composition
                  try {
-                     const compositeImage = await geminiService.compositeProductIntoFrame(avatarB64, productB64);
-                     sourceImageBase64 = compositeImage;
-                 } catch (geminiError: any) {
-                     // FALLBACK: If Gemini 3 Pro (Nano Banana) fails - likely due to permission/tier
-                     console.warn(`Nano Banana Composite failed for ${clip.id}, falling back to Avatar + Text Prompt.`, geminiError);
-                     
-                     // Use original avatar
+                     const compositeUrl = await falService.compositeProduct(
+                        avatarB64, 
+                        productB64, 
+                        `${clip.description}, holding a ${state.productImage.name} packaging`
+                     );
+                     // Fal returns a URL, not Base64, which is fine for the next step
+                     sourceImageBase64 = compositeUrl; 
+                 } catch (err) {
+                     console.warn("Composite failed, falling back to raw avatar", err);
                      sourceImageBase64 = avatarB64;
-                     
-                     // Modify prompt to include product
-                     const productName = state.productImage.name.split('.')[0];
-                     finalPrompt = `${clip.description}, holding a ${productName} product`;
                  }
             } 
+            // ... rest of logic ...
             // LOGIC B: Standard Clip (Just Avatar)
             else if (state.avatarImage) {
                  sourceImageBase64 = await fileToBase64(state.avatarImage);

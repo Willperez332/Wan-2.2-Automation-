@@ -1,15 +1,8 @@
 import { ModelType } from "../types";
-import * as falClient from "@fal-ai/client";
-
-// Handle potential ESM/CJS interop issues from CDN
-const fal = (falClient as any).default || falClient;
+import { fal } from "@fal-ai/client"; // Correct named import
 
 export class FalService {
-  private key: string;
-
   constructor(apiKey: string) {
-    this.key = apiKey;
-    // Configure the fal client with the key
     if (fal.config) {
         fal.config({
             credentials: apiKey,
@@ -17,34 +10,49 @@ export class FalService {
     }
   }
 
+  // REPLACEMENT for "Nano Banana" logic
+  async compositeProduct(avatarBase64: string, productBase64: string, prompt: string): Promise<string> {
+    try {
+        const result: any = await fal.subscribe("fal-ai/flux/dev/image-to-image", {
+            input: {
+                image_url: `data:image/jpeg;base64,${avatarBase64}`,
+                prompt: `(Masterpiece), realistic photo, ${prompt} . The person is holding the product naturally. The product is clearly visible.`,
+                strength: 0.75, // High strength to allow product insertion while keeping avatar likeness
+                guidance_scale: 3.5,
+                // We pass the product as a control image or just rely on the prompt + base composition
+                // For better results, you'd use a LoRA, but standard Image-to-Image works for simple inserts
+            },
+            logs: true,
+        });
+        
+        if (result.images && result.images[0]) {
+            return result.images[0].url;
+        }
+        throw new Error("Fal Composite failed");
+    } catch (error: any) {
+        console.error("Fal Composite Error:", error);
+        throw error;
+    }
+  }
+
   async generateVideoFromImage(
-    sourceImageBase64: string,
+    sourceImageUrlOrBase64: string,
     prompt: string
   ): Promise<string> {
-    if (!this.key) throw new Error("Fal.ai API Key missing");
-
     try {
-        // Use the fal SDK subscribe method which handles queueing and polling
-        // Ensure we access subscribe correctly
-        const subscribeFn = fal.subscribe;
-        
-        if (!subscribeFn) {
-            throw new Error("Fal Client SDK not loaded correctly");
-        }
+        // Handle both raw Base64 and URLs (from the composite step)
+        const imageUrl = sourceImageUrlOrBase64.startsWith('http') 
+            ? sourceImageUrlOrBase64 
+            : `data:image/jpeg;base64,${sourceImageUrlOrBase64}`;
 
-        const result: any = await subscribeFn(ModelType.WAN, {
+        const result: any = await fal.subscribe(ModelType.WAN, {
             input: {
                 prompt: `Cinematic, photorealistic, ${prompt}`,
-                image_url: `data:image/jpeg;base64,${sourceImageBase64}`,
+                image_url: imageUrl,
                 seconds: 5,
                 aspect_ratio: "9:16" 
             },
             logs: true, 
-            onQueueUpdate: (update: any) => {
-                if (update.status === 'IN_PROGRESS') {
-                    console.log("Fal Generation Progress:", update.logs);
-                }
-            }
         });
 
         if (result && result.video && result.video.url) {
@@ -54,9 +62,6 @@ export class FalService {
         }
     } catch (error: any) {
         console.error("Fal Service Error:", error);
-        if (error.message && error.message.includes("Failed to fetch")) {
-             throw new Error("Network Error: Could not connect to Fal.ai. Check your connection.");
-        }
         throw error;
     }
   }

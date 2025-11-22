@@ -7,48 +7,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                50: '#f0fdfa',
-                100: '#ccfbf1',
-                500: '#14b8a6',
-                600: '#0d9488',
-                900: '#134e4a',
-              },
-              dark: {
-                800: '#1e1e2e',
-                900: '#11111b',
-              }
-            },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            }
-          }
-        }
+        /* ... existing config ... */
       }
     </script>
     <style>
-      body { background-color: #11111b; color: #cbd5e1; }
-      /* Custom scrollbar for dark theme */
-      ::-webkit-scrollbar { width: 8px; }
-      ::-webkit-scrollbar-track { background: #1e1e2e; }
-      ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+      /* ... existing styles ... */
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "@fal-ai/client": "https://esm.sh/@fal-ai/client@1.0.3"
-  }
-}
-</script>
-</head>
+    </head>
   <body>
     <div id="root"></div>
   </body>
