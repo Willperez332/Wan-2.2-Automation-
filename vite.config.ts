@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         proxy: {
           '/api/fal': {
-            target: 'https://queue.fal.run', // Default target
+            target: 'https://queue.fal.run', // Default fallback
             changeOrigin: true,
             secure: true,
             // INTELLIGENT ROUTER: Sends storage traffic to the correct server
