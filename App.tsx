@@ -75,10 +75,9 @@ const App: React.FC = () => {
       }));
   };
 
-  const handleGenerate = async () => {
+const handleGenerate = async () => {
     const falService = new FalService();
     setState(prev => ({ ...prev, step: 'generate' }));
-    
     // @ts-ignore
     setState(prev => ({ ...prev, clips: prev.clips.map(c => ({...c, status: 'pending'})) }));
 
@@ -90,12 +89,23 @@ const App: React.FC = () => {
 
         try {
             if (!state.avatarImage) throw new Error("Avatar Required");
-            
+            if (!state.originalVideo) throw new Error("Original Video Required");
+
+            // 1. CUT THE VIDEO FIRST
+            // This sends the full video + timestamps to server, gets back a Fal URL
+            const cutVideoUrl = await falService.cutAndUploadVideo(
+                state.originalVideo, 
+                clip.startTime, 
+                clip.endTime
+            );
+
             const sourceImageBase64 = await fileToBase64(state.avatarImage);
             
+            // 2. GENERATE USING THE CUT CLIP
             const videoUrl = await falService.generateVideoFromImage(
                 sourceImageBase64, 
-                clip.description
+                clip.description,
+                cutVideoUrl // Pass the cut video
             );
             
             updateClipStatus(clip.id, 'completed', videoUrl);

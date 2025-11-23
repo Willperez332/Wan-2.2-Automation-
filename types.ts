@@ -7,6 +7,8 @@ export interface ProcessedClip {
   status: 'pending' | 'generating' | 'completed' | 'failed';
   generatedVideoUrl?: string;
   thumbnail?: string;
+  // NEW: Store the URL of the cut video clip here
+  sourceVideoUrl?: string; 
 }
 
 export interface WorkflowState {
@@ -24,7 +26,7 @@ export interface WorkflowState {
 export enum ModelType {
   ANALYSIS = 'gemini-2.5-flash',
   EDITING = 'gemini-3-pro-image-preview', 
-  // UPDATED to match your documentation link:
+  // CORRECT MODEL for Video-to-Video
   WAN = 'fal-ai/wan/v2.2-14b/animate/move' 
 }
 

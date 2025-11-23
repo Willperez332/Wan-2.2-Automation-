@@ -3,82 +3,77 @@ import { fileToBase64 } from "../utils";
 
 export class FalService {
   
-  // No constructor or config needed on frontend anymore!
+  // Helper to call our new cutter endpoint
+  async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
+    const formData = new FormData();
+    formData.append('video', videoFile);
+    formData.append('startTime', startTime.toString());
+    formData.append('endTime', endTime.toString());
 
-  /**
-   * Sends base64 data to our own server to handle the Fal upload.
-   */
+    const response = await fetch('/api/cut-and-upload', {
+        method: 'POST',
+        body: formData, // No JSON here, we are sending a raw file
+    });
+
+    if (!response.ok) throw new Error("Video cut failed");
+    const data = await response.json();
+    return data.url;
+  }
+
+  // ... existing compositeProduct / uploadImage functions ...
   private async uploadImage(base64: string): Promise<string> {
-    try {
-        const response = await fetch('/api/upload', {
+     // ... (Keep your existing uploadImage logic here) ...
+     const response = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ base64Data: base64 })
-        });
-
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Upload failed');
-        }
-
-        const data = await response.json();
-        return data.url;
-    } catch (e: any) {
-        console.error("Fal Service Upload Error:", e);
-        throw e;
-    }
+     });
+     if (!response.ok) throw new Error('Upload failed');
+     const data = await response.json();
+     return data.url;
   }
 
   async compositeProduct(avatarBase64: string, productBase64: string, prompt: string): Promise<string> {
-    // 1. Upload the avatar first
-    const avatarUrl = await this.uploadImage(`data:image/jpeg;base64,${avatarBase64}`);
-    
-    // 2. Ask server to run Flux
-    const response = await fetch('/api/generate', {
+     // ... (Keep your existing composite logic here) ...
+     const avatarUrl = await this.uploadImage(`data:image/jpeg;base64,${avatarBase64}`);
+     const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: "fal-ai/flux/dev/image-to-image",
-            input: {
-                image_url: avatarUrl,
-                prompt: `(Masterpiece), realistic photo, ${prompt}`,
-                strength: 0.75,
-                guidance_scale: 3.5,
-            }
+            input: { image_url: avatarUrl, prompt: prompt, strength: 0.75, guidance_scale: 3.5 }
         })
-    });
-
-    if (!response.ok) throw new Error("Composite generation failed");
-    
-    const result = await response.json();
-    if (result.images && result.images[0]) return result.images[0].url;
-    throw new Error("No composite image returned");
+     });
+     if (!response.ok) throw new Error("Composite generation failed");
+     const result = await response.json();
+     if (result.images && result.images[0]) return result.images[0].url;
+     throw new Error("No composite image returned");
   }
 
+  // UPDATED GENERATION FUNCTION
   async generateVideoFromImage(
-    sourceImageUrlOrBase64: string,
-    prompt: string
+    sourceImageBase64: string,
+    prompt: string,
+    videoGuidanceUrl: string // NEW PARAMETER
   ): Promise<string> {
-    let imageUrl = sourceImageUrlOrBase64;
-
-    // If it's raw base64, upload it first to get a URL
-    if (!sourceImageUrlOrBase64.startsWith('http')) {
-        imageUrl = await this.uploadImage(`data:image/jpeg;base64,${sourceImageUrlOrBase64}`);
+    
+    let imageUrl = sourceImageBase64;
+    if (!sourceImageBase64.startsWith('http')) {
+        imageUrl = await this.uploadImage(`data:image/jpeg;base64,${sourceImageBase64}`);
     }
 
-    // NOTE: Wan 2.2 Animate usually requires a 'video_url' or an image to animate.
-    // Based on your request, we are just animating the avatar image for now.
     const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: ModelType.WAN,
+            model: ModelType.WAN, // This is now the 'animate/move' model
             input: {
                 prompt: `Cinematic, photorealistic, ${prompt}`,
                 image_url: imageUrl, 
-                // video_url: "..." // TODO: In the future, pass the cut video clip URL here
-                seconds: 5,
-                aspect_ratio: "9:16" 
+                video_url: videoGuidanceUrl, // SEND THE CUT CLIP HERE
+                // Optional parameters for better results:
+                video_quality: "high",
+                video_write_mode: "balanced"
             }
         })
     });
