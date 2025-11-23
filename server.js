@@ -11,9 +11,14 @@ const PORT = process.env.PORT || 3000;
 
 // Secure Proxy for Fal.ai
 app.use('/api/fal', createProxyMiddleware({
-    target: 'https://api.fal.ai',
+    target: 'https://queue.fal.run', // Default fallback
     changeOrigin: true,
     pathRewrite: { '^/api/fal': '' },
+    // DYNAMIC ROUTER: Routes to Storage or Queue based on the SDK header
+    router: (req) => {
+        const target = req.headers['x-fal-target-url'];
+        return typeof target === 'string' ? target : 'https://queue.fal.run';
+    },
     onProxyReq: (proxyReq) => {
         if (process.env.FAL_API_KEY) {
             proxyReq.setHeader('Authorization', `Key ${process.env.FAL_API_KEY}`);

@@ -4,21 +4,20 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
-    
-    // DEBUG LOG: Check your terminal when you start the server
-    console.log("--- VITE PROXY CONFIG ---");
-    console.log("FAL KEY LOADED:", env.FAL_API_KEY ? "YES (Starts with " + env.FAL_API_KEY.substring(0, 5) + ")" : "NO - UNDEFINED");
-    console.log("-------------------------");
-
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
         proxy: {
           '/api/fal': {
-            target: 'https://api.fal.ai',
+            target: 'https://queue.fal.run', // Default fallback
             changeOrigin: true,
             secure: true,
+            // DYNAMIC ROUTER: Routes to Storage or Queue based on the SDK header
+            router: (req) => {
+                const target = req.headers['x-fal-target-url'];
+                return typeof target === 'string' ? target : 'https://queue.fal.run';
+            },
             rewrite: (path) => path.replace(/^\/api\/fal/, ''),
             headers: {
               'Authorization': `Key ${env.FAL_API_KEY}`,

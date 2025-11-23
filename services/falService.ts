@@ -14,7 +14,8 @@ export class FalService {
     // 2. CONFIGURE THE CLIENT
     if (fal && fal.config) {
         fal.config({
-            // CHANGE THIS: Use 'proxyUrl' to force ALL traffic (including storage) through your server
+            // CRITICAL CHANGE: Use 'proxyUrl', NOT 'host'
+            // This ensures the SDK sends the 'x-fal-target-url' header
             proxyUrl: FAL_PROXY_URL, 
             credentials: 'PROXY_USER', 
         });
@@ -26,8 +27,6 @@ export class FalService {
   private async uploadImage(base64: string): Promise<string> {
     try {
         const blob = base64ToBlob(base64);
-        
-        // 3. USE THE UNWRAPPED 'fal' OBJECT
         const url = await fal.storage.upload(blob);
         return url;
     } catch (e: any) {
