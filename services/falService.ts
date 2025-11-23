@@ -1,90 +1,95 @@
 import { ModelType } from "../types";
-import * as falModule from "@fal-ai/client";
-import { base64ToBlob } from "../utils";
-
-// 1. UNWRAP THE MODULE
-const fal = (falModule as any).fal || (falModule as any).default || falModule;
-
-// The proxy endpoint
-const FAL_PROXY_URL = "/api/fal";
+import { fileToBase64 } from "../utils";
 
 export class FalService {
   
-  constructor() {
-    // 2. CONFIGURE THE CLIENT
-    if (fal && fal.config) {
-        fal.config({
-            // CRITICAL FIX: Use 'host' instead of 'proxyUrl'
-            // This forces the SDK to send ALL requests (including uploads) to your local server
-            host: FAL_PROXY_URL, 
-            credentials: 'PROXY_USER', 
-        });
-    } else {
-        console.error("Fal Client methods missing. Check imports.");
-    }
-  }
+  // No constructor or config needed on frontend anymore!
 
+  /**
+   * Sends base64 data to our own server to handle the Fal upload.
+   */
   private async uploadImage(base64: string): Promise<string> {
     try {
-        const blob = base64ToBlob(base64);
-        // 3. UPLOAD
-        // This will now request: http://localhost:3000/api/fal/storage/upload...
-        const url = await fal.storage.upload(blob);
-        return url;
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64Data: base64 })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Upload failed');
+        }
+
+        const data = await response.json();
+        return data.url;
     } catch (e: any) {
-        console.error("Fal Storage Upload Failed:", e);
-        throw new Error(`Failed to upload image: ${e.message || JSON.stringify(e)}`);
+        console.error("Fal Service Upload Error:", e);
+        throw e;
     }
   }
 
   async compositeProduct(avatarBase64: string, productBase64: string, prompt: string): Promise<string> {
-    try {
-        const avatarUrl = await this.uploadImage(avatarBase64);
-        
-        const result: any = await fal.subscribe("fal-ai/flux/dev/image-to-image", {
+    // 1. Upload the avatar first
+    const avatarUrl = await this.uploadImage(`data:image/jpeg;base64,${avatarBase64}`);
+    
+    // 2. Ask server to run Flux
+    const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: "fal-ai/flux/dev/image-to-image",
             input: {
                 image_url: avatarUrl,
-                prompt: `(Masterpiece), realistic photo, ${prompt} . The person is holding the product naturally. The product is clearly visible.`,
+                prompt: `(Masterpiece), realistic photo, ${prompt}`,
                 strength: 0.75,
                 guidance_scale: 3.5,
-            },
-            logs: true,
-        });
-        
-        if (result.images && result.images[0]) {
-            return result.images[0].url;
-        }
-        throw new Error("Fal Composite returned no images");
-    } catch (error: any) {
-        throw new Error(`Fal Composite Error: ${error.message || JSON.stringify(error)}`);
-    }
+            }
+        })
+    });
+
+    if (!response.ok) throw new Error("Composite generation failed");
+    
+    const result = await response.json();
+    if (result.images && result.images[0]) return result.images[0].url;
+    throw new Error("No composite image returned");
   }
 
   async generateVideoFromImage(
     sourceImageUrlOrBase64: string,
     prompt: string
   ): Promise<string> {
-    try {
-        let imageUrl = sourceImageUrlOrBase64;
+    let imageUrl = sourceImageUrlOrBase64;
 
-        if (!sourceImageUrlOrBase64.startsWith('http')) {
-            imageUrl = await this.uploadImage(sourceImageUrlOrBase64);
-        }
-        
-        const result: any = await fal.subscribe(ModelType.WAN, {
+    // If it's raw base64, upload it first to get a URL
+    if (!sourceImageUrlOrBase64.startsWith('http')) {
+        imageUrl = await this.uploadImage(`data:image/jpeg;base64,${sourceImageUrlOrBase64}`);
+    }
+
+    // NOTE: Wan 2.2 Animate usually requires a 'video_url' or an image to animate.
+    // Based on your request, we are just animating the avatar image for now.
+    const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: ModelType.WAN,
             input: {
                 prompt: `Cinematic, photorealistic, ${prompt}`,
-                image_url: imageUrl,
+                image_url: imageUrl, 
+                // video_url: "..." // TODO: In the future, pass the cut video clip URL here
                 seconds: 5,
                 aspect_ratio: "9:16" 
-            },
-            logs: true, 
-        });
+            }
+        })
+    });
 
-        if (result.video?.url) return result.video.url;
-        throw new Error("No video URL in response");
-    } catch (error: any) {
-        throw new Error(`Fal Service Error: ${error.message || JSON.stringify(error)}`);
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Video generation failed");
     }
+
+    const result = await response.json();
+    if (result.video?.url) return result.video.url;
+    throw new Error("No video URL returned");
   }
 }

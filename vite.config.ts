@@ -8,29 +8,13 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Proxy API calls to our local Express server (running on same port in prod, 
+        // but for dev we need to point to where we might run the server if split)
+        // Actually, for simple dev in Codespaces, we can just use the proxy to self or 
+        // simpler: Run the full server.js for dev too (node server.js) OR:
         proxy: {
-          '/api/fal': {
-            target: 'https://queue.fal.run', // Default target
-            changeOrigin: true,
-            secure: true,
-            // 1. INTELLIGENT ROUTER: Check the URL path
-            router: (req) => {
-                if (req.url && req.url.includes('/storage')) {
-                    return 'https://rest.alpha.fal.ai';
-                }
-                return 'https://queue.fal.run';
-            },
-            // 2. REWRITE: Remove the /api/fal prefix
-            rewrite: (path) => path.replace(/^\/api\/fal/, ''),
-            
-            // 3. FORCE AUTH HEADER: This replaces 'PROXY_USER' with your real key
-            configure: (proxy, _options) => {
-              proxy.on('proxyReq', (proxyReq, req, _res) => {
-                proxyReq.setHeader('Authorization', `Key ${env.FAL_API_KEY}`);
-              });
-            }
-          },
-        },
+          '/api': 'http://localhost:3000' // Assuming you run node server.js on 3000
+        }
       },
       plugins: [react()],
       define: {

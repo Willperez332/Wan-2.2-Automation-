@@ -6,7 +6,7 @@ export interface ProcessedClip {
   containsProduct: boolean;
   status: 'pending' | 'generating' | 'completed' | 'failed';
   generatedVideoUrl?: string;
-  thumbnail?: string; // Base64 or URL
+  thumbnail?: string;
 }
 
 export interface WorkflowState {
@@ -23,8 +23,9 @@ export interface WorkflowState {
 
 export enum ModelType {
   ANALYSIS = 'gemini-2.5-flash',
-  EDITING = 'gemini-3-pro-image-preview', // Nano Banana Pro equivalent
-  WAN = 'fal-ai/wan/v2.1-14b' // Wan 2.1 14B endpoint
+  EDITING = 'gemini-3-pro-image-preview', 
+  // UPDATED to match your documentation link:
+  WAN = 'fal-ai/wan/v2.2-14b/animate/move' 
 }
 
 export interface AnalysisResult {
