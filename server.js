@@ -9,14 +9,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Secure Proxy for Fal.ai
 app.use('/api/fal', createProxyMiddleware({
     target: 'https://queue.fal.run',
     changeOrigin: true,
     pathRewrite: { '^/api/fal': '' },
-    // INTELLIGENT ROUTER: Route based on the URL path
+    // Match the router logic from vite.config.ts
     router: (req) => {
-        if (req.url && req.url.includes('/storage')) {
+        if (req.url.includes('/storage')) {
             return 'https://rest.alpha.fal.ai';
         }
         return 'https://queue.fal.run';
@@ -28,7 +27,6 @@ app.use('/api/fal', createProxyMiddleware({
     }
 }));
 
-// Serve the React App
 app.use(express.static(path.join(__dirname, 'dist')));
 
 app.get('*', (req, res) => {

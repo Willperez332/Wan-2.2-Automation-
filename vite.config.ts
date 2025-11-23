@@ -10,20 +10,25 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         proxy: {
           '/api/fal': {
-            target: 'https://queue.fal.run', // Default fallback
+            target: 'https://queue.fal.run', // Default target
             changeOrigin: true,
             secure: true,
-            // INTELLIGENT ROUTER: Route based on the URL path
+            // 1. INTELLIGENT ROUTER: Check the URL path
             router: (req) => {
                 if (req.url && req.url.includes('/storage')) {
                     return 'https://rest.alpha.fal.ai';
                 }
                 return 'https://queue.fal.run';
             },
+            // 2. REWRITE: Remove the /api/fal prefix
             rewrite: (path) => path.replace(/^\/api\/fal/, ''),
-            headers: {
-              'Authorization': `Key ${env.FAL_API_KEY}`,
-            },
+            
+            // 3. FORCE AUTH HEADER: This replaces 'PROXY_USER' with your real key
+            configure: (proxy, _options) => {
+              proxy.on('proxyReq', (proxyReq, req, _res) => {
+                proxyReq.setHeader('Authorization', `Key ${env.FAL_API_KEY}`);
+              });
+            }
           },
         },
       },

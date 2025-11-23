@@ -14,7 +14,8 @@ export class FalService {
     // 2. CONFIGURE THE CLIENT
     if (fal && fal.config) {
         fal.config({
-            // CRITICAL: Use 'host' to force the SDK to use our proxy path structure
+            // CRITICAL FIX: Use 'host' instead of 'proxyUrl'
+            // This forces the SDK to send ALL requests (including uploads) to your local server
             host: FAL_PROXY_URL, 
             credentials: 'PROXY_USER', 
         });
@@ -27,6 +28,7 @@ export class FalService {
     try {
         const blob = base64ToBlob(base64);
         // 3. UPLOAD
+        // This will now request: http://localhost:3000/api/fal/storage/upload...
         const url = await fal.storage.upload(blob);
         return url;
     } catch (e: any) {
