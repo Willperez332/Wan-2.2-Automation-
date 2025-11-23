@@ -6,30 +6,15 @@ import { FalService } from './services/falService';
 import { WorkflowState, ProcessedClip } from './types';
 import { fileToBase64 } from './utils';
 
-// ... (Keep your Icons here: VideoIcon, UserIcon, etc.) ...
-// For brevity, assuming standard icons remain from previous file
-const VideoIcon = () => <span>🎥</span>;
-const UserIcon = () => <span>👤</span>;
-const PackageIcon = () => <span>📦</span>;
-const KeyIcon = () => <span>🔑</span>;
-const WandIcon = () => <span>jh</span>;
-const CheckIcon = () => <span>✅</span>;
-const AlertIcon = () => <span>⚠️</span>;
-const PlayIcon = () => <span>▶️</span>;
-
-const getEnvApiKey = () => {
-  try {
-    // FIX: Look for GEMINI_API_KEY, not API_KEY
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
-        // @ts-ignore
-        return process.env.GEMINI_API_KEY;
-    }
-    return '';
-  } catch (e) {
-    return '';
-  }
-};
+// Icons
+const VideoIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>;
+const UserIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>;
+const PackageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22v-9"/></svg>;
+const KeyIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>;
+const WandIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4V2"/><path d="M15 16v-2"/><path d="M8 9h2"/><path d="M20 9h2"/><path d="M17.8 11.8 19 13"/><path d="M15 9h0"/><path d="M17.8 6.2 19 5"/><path d="m3 21 9-9"/><path d="M12.2 6.2 11 5"/></svg>;
+const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+const AlertIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
 const App: React.FC = () => {
   const [state, setState] = useState<WorkflowState>({
@@ -37,8 +22,9 @@ const App: React.FC = () => {
     originalVideo: null,
     avatarImage: null,
     productImage: null,
-    geminiKey: getEnvApiKey(),
-    falKey: 'SERVER_MANAGED', // FIX: Dummy value enables the button
+    // BYPASS: Assume key is on server, unlock UI immediately
+    geminiKey: 'SERVER_MANAGED', 
+    falKey: 'SERVER_MANAGED',
     clips: [],
     isAnalyzing: false,
     analysisProgress: '',
@@ -71,7 +57,7 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, clips: newClips, isAnalyzing: false, step: 'review' }));
     } catch (error) {
       console.error(error);
-      alert('Analysis failed.');
+      alert('Analysis failed. Check console for details.');
       setState(prev => ({ ...prev, isAnalyzing: false, step: 'upload' }));
     }
   };
@@ -84,7 +70,6 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    // Initialize without keys (Server handles it)
     const falService = new FalService();
     setState(prev => ({ ...prev, step: 'generate' }));
     
@@ -102,7 +87,6 @@ const App: React.FC = () => {
             
             const sourceImageBase64 = await fileToBase64(state.avatarImage);
             
-            // SIMPLIFIED: Skip composite, just animate the avatar based on the clip description
             const videoUrl = await falService.generateVideoFromImage(
                 sourceImageBase64, 
                 clip.description
@@ -116,9 +100,6 @@ const App: React.FC = () => {
         }
     }
   };
-
-  // ... Render logic remains the same, just update the button check ...
-  // Ensure the button below uses state.geminiKey correctly
 
   return (
     <div className="min-h-screen bg-[#11111b] text-gray-200 font-sans">
@@ -144,8 +125,8 @@ const App: React.FC = () => {
             <div className="flex justify-center">
               <button 
                 onClick={handleAnalyze}
-                // FIX: Check if geminiKey exists (it should from .env)
-                disabled={!state.originalVideo || !state.geminiKey}
+                // BYPASS: Only verify file presence, trust the server for auth
+                disabled={!state.originalVideo}
                 className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Start Gemini Analysis
@@ -153,8 +134,6 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-        
-        {/* ... (Analyze and Review steps remain standard) ... */}
         
         {state.step === 'analyze' && (
             <div className="text-center py-20">Analyzing... {state.analysisProgress}</div>
