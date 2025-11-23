@@ -21,9 +21,13 @@ export const blobToDataUrl = (blob: Blob): Promise<string> => {
     });
 }
 
+// THIS WAS MISSING OR NOT EXPORTED CORRECTLY
 export const base64ToBlob = (base64: string, mimeType: string = 'image/jpeg'): Blob => {
   try {
-    const byteCharacters = atob(base64);
+    // Handle raw base64 string (remove data URI prefix if present)
+    const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
+    
+    const byteCharacters = atob(base64Clean);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i);

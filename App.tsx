@@ -96,8 +96,11 @@ const App: React.FC = () => {
 
   // Handle Generation Trigger
   const handleGenerate = async () => {
-    // No longer need to check state.falKey or pass it
-    const falService = new FalService();
+    if (!state.falKey) {
+        alert("Please provide a Fal.ai API Key in the menu top right.");
+        return;
+    }
+    const falService = new FalService(state.falKey);
 
     setState(prev => ({ ...prev, step: 'generate' }));
     
@@ -116,7 +119,9 @@ const App: React.FC = () => {
             let sourceImageBase64 = '';
             let finalPrompt = clip.description;
 
-            // LOGIC A: Clip contains product (Transition/Nano Banana Step)
+// ... inside handleGenerate loop ...
+
+            // LOGIC A: Clip contains product (The "Handoff" Step)
             if (clip.containsProduct && state.productImage && state.avatarImage) {
                  const avatarB64 = await fileToBase64(state.avatarImage);
                  const productB64 = await fileToBase64(state.productImage);
@@ -134,7 +139,8 @@ const App: React.FC = () => {
                      console.warn("Composite failed, falling back to raw avatar", err);
                      sourceImageBase64 = avatarB64;
                  }
-            }
+            } 
+            // ... rest of logic ...
             // LOGIC B: Standard Clip (Just Avatar)
             else if (state.avatarImage) {
                  sourceImageBase64 = await fileToBase64(state.avatarImage);
