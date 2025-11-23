@@ -123,3 +123,14 @@ app.post('/api/generate', async (req, res) => {
             onQueueUpdate: (update) => {
                 if (update.status === 'IN_PROGRESS' && update.logs) {
                     update.logs.forEach(l => console.log('Fal:', l.message));
+                }
+            }
+        });
+        res.json(result);
+    } catch (error) {
+        console.error('❌ Generation Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.listen(PORT, () => console.log(`⚡️ Server ready on port ${PORT}`));
