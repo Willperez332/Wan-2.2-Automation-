@@ -2,10 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// FIX: Robust Import for Fal (handles CJS/ESM mismatch)
 import * as falModule from '@fal-ai/client';
 const fal = (falModule.default && falModule.default.fal) ? falModule.default.fal : (falModule.fal || falModule);
-
 import multer from 'multer';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
@@ -16,13 +14,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Ensure uploads directory exists
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// Configure Multer to preserve extensions
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir)
@@ -34,18 +30,21 @@ const storage = multer.diskStorage({
   }
 })
 
-const upload = multer({ storage: storage });
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 500 * 1024 * 1024 } // INCREASED LIMIT TO 500MB
+});
 
-app.use(express.json({ limit: '50mb' }));
+// INCREASED BODY PARSER LIMITS
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
+
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Configure Fal
 if (fal && fal.config) {
     fal.config({
         credentials: process.env.FAL_API_KEY,
     });
-} else {
-    console.error("CRITICAL: Fal Client not loaded correctly on server.");
 }
 
 const cutVideo = (inputPath, startTime, duration, outputPath) => {
@@ -60,7 +59,6 @@ const cutVideo = (inputPath, startTime, duration, outputPath) => {
     });
 };
 
-// API: Cut and Upload
 app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No video file provided' });
     
@@ -78,7 +76,6 @@ app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
         const clipBuffer = fs.readFileSync(outputPath);
         const url = await fal.storage.upload(clipBuffer);
         
-        // Cleanup
         try { fs.unlinkSync(inputPath); } catch(e) {}
         try { fs.unlinkSync(outputPath); } catch(e) {}
         
@@ -89,7 +86,6 @@ app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
     }
 });
 
-// API: Upload Image
 app.post('/api/upload', async (req, res) => {
     try {
         const { base64Data } = req.body;
@@ -105,7 +101,6 @@ app.post('/api/upload', async (req, res) => {
     }
 });
 
-// API: Generate
 app.post('/api/generate', async (req, res) => {
     try {
         const { model, input } = req.body;
@@ -123,5 +118,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT} with 500MB limit`);
 });
