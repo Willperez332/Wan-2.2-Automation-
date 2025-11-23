@@ -26,16 +26,11 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`)
 });
 
-const upload = multer({ 
-    storage: storage, 
-    limits: { fileSize: 500 * 1024 * 1024 } 
-});
+const upload = multer({ storage: storage, limits: { fileSize: 500 * 1024 * 1024 } });
 
 // Middleware
 app.use((req, res, next) => {
-    if(req.url.startsWith('/api')) {
-        console.log(`[${new Date().toISOString()}] API Request: ${req.method} ${req.url}`);
-    }
+    if(req.url.startsWith('/api')) console.log(`[API] ${req.method} ${req.url}`);
     next();
 });
 
@@ -43,18 +38,14 @@ app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Fal Config
-if (!process.env.FAL_API_KEY) {
-    console.error('❌ CRITICAL: FAL_API_KEY is missing from .env');
-} else {
-    fal.config({ credentials: process.env.FAL_API_KEY });
-}
+if (!process.env.FAL_API_KEY) console.error('❌ CRITICAL: FAL_API_KEY is missing');
+else fal.config({ credentials: process.env.FAL_API_KEY });
 
 // --- ROUTES ---
 
 const uploadMiddleware = upload.single('video');
 
-// 1. VIDEO CUTTER ROUTE
+// 1. VIDEO CUTTER
 app.post('/api/cut-and-upload', (req, res) => {
     uploadMiddleware(req, res, async (err) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -68,8 +59,6 @@ app.post('/api/cut-and-upload', (req, res) => {
             const outputFilename = `cut-${Date.now()}.mp4`;
             const outputPath = path.join(tempDir, outputFilename);
             const duration = parseFloat(endTime) - parseFloat(startTime);
-
-            if (!fal || !fal.storage) throw new Error("Fal Client not initialized");
 
             ffmpeg(inputPath)
                 .setStartTime(startTime)
@@ -96,23 +85,17 @@ app.post('/api/cut-and-upload', (req, res) => {
                     res.status(500).json({ error: 'Video processing failed.' });
                 })
                 .run();
-
         } catch (error) {
-            console.error('❌ Error:', error);
             res.status(500).json({ error: error.message });
         }
     });
 });
 
-// 2. NEW: IMAGE UPLOAD ROUTE (This was missing!)
+// 2. IMAGE UPLOAD
 app.post('/api/upload', async (req, res) => {
     try {
         const { base64Data } = req.body;
-        if (!base64Data) return res.status(400).json({ error: 'No base64 data provided' });
-
         console.log('📸 Uploading image to Fal...');
-
-        // Handle base64 string (strip prefix if exists)
         const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         let buffer, mimeType;
 
@@ -126,33 +109,34 @@ app.post('/api/upload', async (req, res) => {
 
         const blob = new Blob([buffer], { type: mimeType });
         const url = await fal.storage.upload(blob);
-        
         console.log('✨ Image Uploaded:', url);
         res.json({ url });
-
     } catch (error) {
-        console.error('❌ Image Upload Error:', error);
         res.status(500).json({ error: 'Image upload failed' });
     }
 });
 
-// 3. GENERATE ROUTE
+// 3. ASYNC SUBMIT (Fixes 504 Timeout)
 app.post('/api/generate', async (req, res) => {
     try {
         const { model, input } = req.body;
-        console.log(`🎨 Generating ${model}...`);
-        const result = await fal.subscribe(model, {
-            input,
-            logs: true,
-            onQueueUpdate: (update) => {
-                if (update.status === 'IN_PROGRESS' && update.logs) {
-                    update.logs.forEach(l => console.log('Fal:', l.message));
-                }
-            }
-        });
-        res.json(result);
+        console.log(`🎨 Submitting job to ${model}...`);
+        // Use submit instead of subscribe so we don't keep connection open
+        const { request_id } = await fal.queue.submit(model, { input });
+        console.log(`🎫 Job Submitted. ID: ${request_id}`);
+        res.json({ request_id });
     } catch (error) {
-        console.error('❌ Generation Error:', error);
+        console.error('❌ Submission Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 4. STATUS CHECK (For Polling)
+app.get('/api/status/:requestId', async (req, res) => {
+    try {
+        const status = await fal.queue.status(req.params.requestId, { logs: true });
+        res.json(status);
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });

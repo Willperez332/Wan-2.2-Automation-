@@ -3,7 +3,6 @@ import { fileToBase64 } from "../utils";
 
 export class FalService {
   
-  // Helper to call our new cutter endpoint
   async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
     const formData = new FormData();
     formData.append('video', videoFile);
@@ -12,7 +11,7 @@ export class FalService {
 
     const response = await fetch('/api/cut-and-upload', {
         method: 'POST',
-        body: formData, // No JSON here, we are sending a raw file
+        body: formData,
     });
 
     if (!response.ok) throw new Error("Video cut failed");
@@ -20,9 +19,7 @@ export class FalService {
     return data.url;
   }
 
-  // ... existing compositeProduct / uploadImage functions ...
   private async uploadImage(base64: string): Promise<string> {
-     // ... (Keep your existing uploadImage logic here) ...
      const response = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -33,28 +30,33 @@ export class FalService {
      return data.url;
   }
 
-  async compositeProduct(avatarBase64: string, productBase64: string, prompt: string): Promise<string> {
-     // ... (Keep your existing composite logic here) ...
-     const avatarUrl = await this.uploadImage(`data:image/jpeg;base64,${avatarBase64}`);
-     const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: "fal-ai/flux/dev/image-to-image",
-            input: { image_url: avatarUrl, prompt: prompt, strength: 0.75, guidance_scale: 3.5 }
-        })
-     });
-     if (!response.ok) throw new Error("Composite generation failed");
-     const result = await response.json();
-     if (result.images && result.images[0]) return result.images[0].url;
-     throw new Error("No composite image returned");
+  // POLLING HELPER
+  private async pollForVideo(requestId: string): Promise<string> {
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+    
+    while (true) {
+        const response = await fetch(`/api/status/${requestId}`);
+        const status = await response.json();
+
+        if (status.status === 'COMPLETED') {
+            if (status.video?.url) return status.video.url; // For Wan
+            if (status.images?.[0]?.url) return status.images[0].url; // For Flux
+            throw new Error("Completed but no media found");
+        }
+        
+        if (status.status === 'FAILED') {
+            throw new Error(status.error || "Generation Failed");
+        }
+
+        // Wait 2 seconds before checking again
+        await delay(2000);
+    }
   }
 
-  // UPDATED GENERATION FUNCTION
   async generateVideoFromImage(
     sourceImageBase64: string,
     prompt: string,
-    videoGuidanceUrl: string // NEW PARAMETER
+    videoGuidanceUrl: string
   ): Promise<string> {
     
     let imageUrl = sourceImageBase64;
@@ -62,16 +64,16 @@ export class FalService {
         imageUrl = await this.uploadImage(`data:image/jpeg;base64,${sourceImageBase64}`);
     }
 
+    // 1. Submit Job
     const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: ModelType.WAN, // This is now the 'animate/move' model
+            model: ModelType.WAN,
             input: {
                 prompt: `Cinematic, photorealistic, ${prompt}`,
                 image_url: imageUrl, 
-                video_url: videoGuidanceUrl, // SEND THE CUT CLIP HERE
-                // Optional parameters for better results:
+                video_url: videoGuidanceUrl,
                 video_quality: "high",
                 video_write_mode: "balanced"
             }
@@ -83,8 +85,9 @@ export class FalService {
         throw new Error(err.error || "Video generation failed");
     }
 
-    const result = await response.json();
-    if (result.video?.url) return result.video.url;
-    throw new Error("No video URL returned");
+    const { request_id } = await response.json();
+    
+    // 2. Poll for Result
+    return await this.pollForVideo(request_id);
   }
 }
