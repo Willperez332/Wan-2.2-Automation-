@@ -10,13 +10,15 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         proxy: {
           '/api/fal': {
-            target: 'https://queue.fal.run', // Default fallback
+            target: 'https://queue.fal.run', // Default target
             changeOrigin: true,
             secure: true,
-            // DYNAMIC ROUTER: Routes to Storage or Queue based on the SDK header
+            // INTELLIGENT ROUTER: Sends storage traffic to the correct server
             router: (req) => {
-                const target = req.headers['x-fal-target-url'];
-                return typeof target === 'string' ? target : 'https://queue.fal.run';
+                if (req.url.includes('/storage')) {
+                    return 'https://rest.alpha.fal.ai';
+                }
+                return 'https://queue.fal.run';
             },
             rewrite: (path) => path.replace(/^\/api\/fal/, ''),
             headers: {

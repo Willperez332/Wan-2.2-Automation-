@@ -11,13 +11,15 @@ const PORT = process.env.PORT || 3000;
 
 // Secure Proxy for Fal.ai
 app.use('/api/fal', createProxyMiddleware({
-    target: 'https://queue.fal.run', // Default fallback
+    target: 'https://queue.fal.run',
     changeOrigin: true,
     pathRewrite: { '^/api/fal': '' },
-    // DYNAMIC ROUTER: Routes to Storage or Queue based on the SDK header
+    // INTELLIGENT ROUTER: Matches vite.config.ts logic
     router: (req) => {
-        const target = req.headers['x-fal-target-url'];
-        return typeof target === 'string' ? target : 'https://queue.fal.run';
+        if (req.url.includes('/storage')) {
+            return 'https://rest.alpha.fal.ai';
+        }
+        return 'https://queue.fal.run';
     },
     onProxyReq: (proxyReq) => {
         if (process.env.FAL_API_KEY) {
