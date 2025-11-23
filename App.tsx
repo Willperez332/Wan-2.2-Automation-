@@ -16,15 +16,21 @@ const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height
 const CheckIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
 const AlertIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
+const getEnvApiKey = () => {
+  // Vite statically replaces 'process.env.GEMINI_API_KEY' with the actual string value at build time.
+  // We do NOT check for 'process' existence because 'process' is not available in the browser.
+  // @ts-ignore
+  return process.env.GEMINI_API_KEY || '';
+};
+
 const App: React.FC = () => {
   const [state, setState] = useState<WorkflowState>({
     step: 'upload',
     originalVideo: null,
     avatarImage: null,
     productImage: null,
-    // BYPASS: Assume key is on server, unlock UI immediately
-    geminiKey: 'SERVER_MANAGED', 
-    falKey: 'SERVER_MANAGED',
+    geminiKey: getEnvApiKey(),
+    falKey: 'SERVER_MANAGED', 
     clips: [],
     isAnalyzing: false,
     analysisProgress: '',
@@ -125,7 +131,6 @@ const App: React.FC = () => {
             <div className="flex justify-center">
               <button 
                 onClick={handleAnalyze}
-                // BYPASS: Only verify file presence, trust the server for auth
                 disabled={!state.originalVideo}
                 className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
