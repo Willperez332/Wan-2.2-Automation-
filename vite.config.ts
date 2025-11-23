@@ -13,9 +13,9 @@ export default defineConfig(({ mode }) => {
             target: 'https://queue.fal.run', // Default fallback
             changeOrigin: true,
             secure: true,
-            // INTELLIGENT ROUTER: Sends storage traffic to the correct server
+            // INTELLIGENT ROUTER: Route based on the URL path
             router: (req) => {
-                if (req.url.includes('/storage')) {
+                if (req.url && req.url.includes('/storage')) {
                     return 'https://rest.alpha.fal.ai';
                 }
                 return 'https://queue.fal.run';

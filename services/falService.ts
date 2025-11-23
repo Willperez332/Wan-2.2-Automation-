@@ -14,8 +14,7 @@ export class FalService {
     // 2. CONFIGURE THE CLIENT
     if (fal && fal.config) {
         fal.config({
-            // CHANGE: Use 'host' instead of 'proxyUrl'. 
-            // This lets our server router handle the destination (Storage vs Queue)
+            // CRITICAL: Use 'host' to force the SDK to use our proxy path structure
             host: FAL_PROXY_URL, 
             credentials: 'PROXY_USER', 
         });

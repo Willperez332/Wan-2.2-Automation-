@@ -14,9 +14,9 @@ app.use('/api/fal', createProxyMiddleware({
     target: 'https://queue.fal.run',
     changeOrigin: true,
     pathRewrite: { '^/api/fal': '' },
-    // INTELLIGENT ROUTER: Matches vite.config.ts logic
+    // INTELLIGENT ROUTER: Route based on the URL path
     router: (req) => {
-        if (req.url.includes('/storage')) {
+        if (req.url && req.url.includes('/storage')) {
             return 'https://rest.alpha.fal.ai';
         }
         return 'https://queue.fal.run';
