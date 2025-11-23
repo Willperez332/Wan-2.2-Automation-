@@ -20,9 +20,10 @@ const AlertIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" heigh
 const getEnvApiKey = () => {
   try {
     // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    // UPDATED: Correct variable name matching vite.config.ts
+    if (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) {
         // @ts-ignore
-        return process.env.API_KEY;
+        return process.env.GEMINI_API_KEY;
     }
     return '';
   } catch (e) {
@@ -37,7 +38,7 @@ const App: React.FC = () => {
     avatarImage: null,
     productImage: null,
     geminiKey: getEnvApiKey(),
-    falKey: '',
+    falKey: 'PROXY_ENABLED', // Dummy value to satisfy UI, real auth is on server
     clips: [],
     isAnalyzing: false,
     analysisProgress: '',
@@ -96,11 +97,8 @@ const App: React.FC = () => {
 
   // Handle Generation Trigger
   const handleGenerate = async () => {
-    if (!state.falKey) {
-        alert("Please provide a Fal.ai API Key in the menu top right.");
-        return;
-    }
-    const falService = new FalService(state.falKey);
+    // No arguments needed; authentication is handled by server proxy
+    const falService = new FalService();
 
     setState(prev => ({ ...prev, step: 'generate' }));
     
@@ -118,8 +116,6 @@ const App: React.FC = () => {
         try {
             let sourceImageBase64 = '';
             let finalPrompt = clip.description;
-
-// ... inside handleGenerate loop ...
 
             // LOGIC A: Clip contains product (The "Handoff" Step)
             if (clip.containsProduct && state.productImage && state.avatarImage) {
@@ -140,7 +136,6 @@ const App: React.FC = () => {
                      sourceImageBase64 = avatarB64;
                  }
             } 
-            // ... rest of logic ...
             // LOGIC B: Standard Clip (Just Avatar)
             else if (state.avatarImage) {
                  sourceImageBase64 = await fileToBase64(state.avatarImage);
@@ -171,35 +166,10 @@ const App: React.FC = () => {
             <h1 className="font-bold text-xl tracking-tight">WANimate <span className="text-gray-500 font-normal">Automation</span></h1>
           </div>
           <div className="flex items-center gap-4">
-             <div className="relative group">
-               <button className={`flex items-center gap-2 text-sm transition-colors border border-gray-700 rounded-full px-3 py-1 ${state.falKey ? 'text-brand-400 border-brand-500/50' : 'text-gray-400'}`}>
+             {/* Keys are now auto-managed by server/env, showing simplified status */}
+             <div className="flex items-center gap-2 text-sm border border-green-900/30 bg-green-900/20 text-green-400 rounded-full px-3 py-1">
                  <KeyIcon />
-                 <span>{state.falKey ? 'Keys Set' : 'Set Keys'}</span>
-               </button>
-               {/* Dropdown for keys */}
-               <div className="absolute right-0 top-full mt-2 w-72 bg-dark-800 border border-gray-700 rounded-lg shadow-xl p-4 hidden group-hover:block z-50 animate-fade-in">
-                 <div className="space-y-3">
-                   <div>
-                     <label className="text-xs text-gray-500 block mb-1">Gemini API Key</label>
-                     <input 
-                        type="password" 
-                        value={state.geminiKey} 
-                        onChange={e => setState(p => ({...p, geminiKey: e.target.value}))}
-                        className="w-full bg-black/20 border border-gray-700 rounded px-2 py-1 text-sm focus:border-brand-500 outline-none text-white"
-                     />
-                   </div>
-                   <div>
-                     <label className="text-xs text-gray-500 block mb-1">Fal.ai API Key</label>
-                     <input 
-                        type="password" 
-                        value={state.falKey} 
-                        onChange={e => setState(p => ({...p, falKey: e.target.value}))}
-                        placeholder="fal_..."
-                        className="w-full bg-black/20 border border-gray-700 rounded px-2 py-1 text-sm focus:border-brand-500 outline-none text-white"
-                     />
-                   </div>
-                 </div>
-               </div>
+                 <span>System Ready</span>
              </div>
           </div>
         </div>
@@ -254,9 +224,6 @@ const App: React.FC = () => {
                 Start Gemini Analysis
               </button>
             </div>
-            {!state.geminiKey && (
-               <p className="text-center text-red-400 text-sm mt-2">Please enter Gemini API Key in the top right menu.</p>
-            )}
           </div>
         )}
 
