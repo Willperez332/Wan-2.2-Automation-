@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// Use the safe import pattern for Fal
 import * as falModule from '@fal-ai/client';
 const fal = (falModule.default && falModule.default.fal) ? falModule.default.fal : (falModule.fal || falModule);
 import multer from 'multer';
@@ -34,7 +33,6 @@ const upload = multer({
 
 // Middleware
 app.use((req, res, next) => {
-    // FIXED: The typo was here (newDG -> new Date)
     if(req.url.startsWith('/api')) {
         console.log(`[${new Date().toISOString()}] API Request: ${req.method} ${req.url}`);
     }
@@ -52,16 +50,14 @@ if (!process.env.FAL_API_KEY) {
     fal.config({ credentials: process.env.FAL_API_KEY });
 }
 
-// Routes
+// --- ROUTES ---
+
 const uploadMiddleware = upload.single('video');
 
+// 1. VIDEO CUTTER ROUTE
 app.post('/api/cut-and-upload', (req, res) => {
     uploadMiddleware(req, res, async (err) => {
-        if (err) {
-            console.error('❌ Multer Error:', err);
-            return res.status(500).json({ error: err.message });
-        }
-
+        if (err) return res.status(500).json({ error: err.message });
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         try {
@@ -72,6 +68,8 @@ app.post('/api/cut-and-upload', (req, res) => {
             const outputFilename = `cut-${Date.now()}.mp4`;
             const outputPath = path.join(tempDir, outputFilename);
             const duration = parseFloat(endTime) - parseFloat(startTime);
+
+            if (!fal || !fal.storage) throw new Error("Fal Client not initialized");
 
             ffmpeg(inputPath)
                 .setStartTime(startTime)
@@ -84,35 +82,61 @@ app.post('/api/cut-and-upload', (req, res) => {
                     try {
                         const fileBuffer = fs.readFileSync(outputPath);
                         const blob = new Blob([fileBuffer], { type: 'video/mp4' });
-                        
                         const url = await fal.storage.upload(blob);
-                        console.log('🚀 Fal Uploaded:', url);
-                        
-                        // Cleanup
+                        console.log('🚀 Fal Video Uploaded:', url);
                         try { fs.unlinkSync(inputPath); fs.unlinkSync(outputPath); } catch(e) {}
-                        
                         res.json({ url });
                     } catch (falErr) {
                         console.error('❌ Fal Upload Failed:', falErr);
-                        res.status(500).json({ error: 'Fal upload failed. Check server logs.' });
+                        res.status(500).json({ error: 'Fal upload failed.' });
                     }
                 })
                 .on('error', (ffmpegErr) => {
                     console.error('❌ FFmpeg Failed:', ffmpegErr);
-                    if (ffmpegErr.message.includes('ffmpeg was not found')) {
-                        console.error('👉 TIP: Run "sudo apt-get install ffmpeg" in your terminal');
-                    }
-                    res.status(500).json({ error: 'Video processing failed on server.' });
+                    res.status(500).json({ error: 'Video processing failed.' });
                 })
                 .run();
 
         } catch (error) {
-            console.error('❌ General Error:', error);
+            console.error('❌ Error:', error);
             res.status(500).json({ error: error.message });
         }
     });
 });
 
+// 2. NEW: IMAGE UPLOAD ROUTE (This was missing!)
+app.post('/api/upload', async (req, res) => {
+    try {
+        const { base64Data } = req.body;
+        if (!base64Data) return res.status(400).json({ error: 'No base64 data provided' });
+
+        console.log('📸 Uploading image to Fal...');
+
+        // Handle base64 string (strip prefix if exists)
+        const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        let buffer, mimeType;
+
+        if (matches && matches.length === 3) {
+            mimeType = matches[1];
+            buffer = Buffer.from(matches[2], 'base64');
+        } else {
+            mimeType = 'image/jpeg';
+            buffer = Buffer.from(base64Data, 'base64');
+        }
+
+        const blob = new Blob([buffer], { type: mimeType });
+        const url = await fal.storage.upload(blob);
+        
+        console.log('✨ Image Uploaded:', url);
+        res.json({ url });
+
+    } catch (error) {
+        console.error('❌ Image Upload Error:', error);
+        res.status(500).json({ error: 'Image upload failed' });
+    }
+});
+
+// 3. GENERATE ROUTE
 app.post('/api/generate', async (req, res) => {
     try {
         const { model, input } = req.body;
