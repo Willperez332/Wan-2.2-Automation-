@@ -4,6 +4,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
+    
+    // DEBUG LOG: Check your terminal when you start the server
+    console.log("--- VITE PROXY CONFIG ---");
+    console.log("FAL KEY LOADED:", env.FAL_API_KEY ? "YES (Starts with " + env.FAL_API_KEY.substring(0, 5) + ")" : "NO - UNDEFINED");
+    console.log("-------------------------");
+
     return {
       server: {
         port: 3000,

@@ -3,22 +3,20 @@ import * as falModule from "@fal-ai/client";
 import { base64ToBlob } from "../utils";
 
 // 1. UNWRAP THE MODULE
-// This effectively grabs the 'fal' object or the module itself, casting to 'any' 
-// to stop TypeScript from complaining about missing types.
 const fal = (falModule as any).fal || (falModule as any).default || falModule;
 
-// The proxy endpoint (handled by Vite in Dev, and Express in Prod)
+// The proxy endpoint
 const FAL_PROXY_URL = "/api/fal";
 
 export class FalService {
   
   constructor() {
     // 2. CONFIGURE THE CLIENT
-    // We check if 'config' exists to be safe, then call it.
     if (fal && fal.config) {
         fal.config({
-            host: FAL_PROXY_URL,
-            credentials: 'PROXY_USER', // Dummy string to satisfy TS
+            // CHANGE THIS: Use 'proxyUrl' to force ALL traffic (including storage) through your server
+            proxyUrl: FAL_PROXY_URL, 
+            credentials: 'PROXY_USER', 
         });
     } else {
         console.error("Fal Client methods missing. Check imports.");
