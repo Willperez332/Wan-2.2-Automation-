@@ -2,7 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { fal } from '@fal-ai/client';
+// FIX: Robust Import for Fal (handles CJS/ESM mismatch)
+import * as falModule from '@fal-ai/client';
+const fal = (falModule.default && falModule.default.fal) ? falModule.default.fal : (falModule.fal || falModule);
+
 import multer from 'multer';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
@@ -19,14 +22,13 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// Configure Multer to preserve extensions (FFmpeg likes extensions)
+// Configure Multer to preserve extensions
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir)
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    // Default to .mp4 if no extension
     const ext = path.extname(file.originalname) || '.mp4';
     cb(null, file.fieldname + '-' + uniqueSuffix + ext)
   }
@@ -37,9 +39,14 @@ const upload = multer({ storage: storage });
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-fal.config({
-    credentials: process.env.FAL_API_KEY,
-});
+// Configure Fal
+if (fal && fal.config) {
+    fal.config({
+        credentials: process.env.FAL_API_KEY,
+    });
+} else {
+    console.error("CRITICAL: Fal Client not loaded correctly on server.");
+}
 
 const cutVideo = (inputPath, startTime, duration, outputPath) => {
     return new Promise((resolve, reject) => {
@@ -53,6 +60,7 @@ const cutVideo = (inputPath, startTime, duration, outputPath) => {
     });
 };
 
+// API: Cut and Upload
 app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No video file provided' });
     
@@ -62,17 +70,17 @@ app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
     
     try {
         const duration = parseFloat(endTime) - parseFloat(startTime);
-        console.log(`Cutting video: ${startTime}s -> ${endTime}s (Duration: ${duration}s)`);
+        console.log(`Processing: Cutting ${startTime}s -> ${endTime}s`);
         
         await cutVideo(inputPath, startTime, duration, outputPath);
         
-        console.log("Uploading cut clip to Fal...");
+        console.log("Uploading segment to Fal...");
         const clipBuffer = fs.readFileSync(outputPath);
         const url = await fal.storage.upload(clipBuffer);
         
         // Cleanup
-        try { fs.unlinkSync(inputPath); } catch (e) {}
-        try { fs.unlinkSync(outputPath); } catch (e) {}
+        try { fs.unlinkSync(inputPath); } catch(e) {}
+        try { fs.unlinkSync(outputPath); } catch(e) {}
         
         res.json({ url });
     } catch (error) {
@@ -81,6 +89,7 @@ app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
     }
 });
 
+// API: Upload Image
 app.post('/api/upload', async (req, res) => {
     try {
         const { base64Data } = req.body;
@@ -96,6 +105,7 @@ app.post('/api/upload', async (req, res) => {
     }
 });
 
+// API: Generate
 app.post('/api/generate', async (req, res) => {
     try {
         const { model, input } = req.body;
