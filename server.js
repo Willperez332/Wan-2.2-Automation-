@@ -24,6 +24,16 @@ const upload = multer({ storage: multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`)
 })});
+// 1. Create a Helper to conditionally apply Multer
+const conditionalUpload = (req, res, next) => {
+    const contentType = req.headers['content-type'];
+    // If it's a JSON request, skip Multer and go to the route handler
+    if (contentType && contentType.includes('application/json')) {
+        return next();
+    }
+    // Otherwise, run Multer for multipart/form-data
+    return upload.single('video')(req, res, next);
+};
 
 app.use((req, res, next) => {
     if(req.url.startsWith('/api')) console.log(`[${new Date().toISOString()}] API: ${req.method} ${req.url}`);
@@ -45,30 +55,26 @@ app.get('/api/auth/key', (req, res) => {
 });
 
 // 2. UNIVERSAL CUTTER (Accepts File OR URL)
-app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
+app.post('/api/cut-and-upload', conditionalUpload, async (req, res) => {
     try {
         const { startTime, endTime, videoUrl } = req.body;
         let inputPath;
-        let cleanupInput = false;
 
         // A. Handle Direct File Upload (Small files)
         if (req.file) {
-            console.log(`✂️ Cutting Uploaded File: ${req.file.originalname}`);
+            // Case A: Small file uploaded via Multer
+            console.log("✂️ Cutting uploaded local file...");
             inputPath = req.file.path;
-            cleanupInput = true;
-        } 
-        // B. Handle URL (Large files)
-        else if (videoUrl) {
-            console.log(`⬇️ Downloading Full Video from URL...`);
+        } else if (videoUrl) {
+            // Case B: Large file URL passed via JSON
+            console.log(`⬇️ Downloading Video from URL: ${videoUrl}`);
             inputPath = path.join(uploadDir, `download-${Date.now()}.mp4`);
             
             const downloadRes = await fetch(videoUrl);
-            if (!downloadRes.ok) throw new Error(`Failed to download video: ${downloadRes.statusText}`);
+            if (!downloadRes.ok) throw new Error(`Download failed: ${downloadRes.statusText}`);
             
-            const fileStream = fs.createWriteStream(inputPath);
-            await pipeline(downloadRes.body, fileStream);
-            cleanupInput = true;
-            console.log(`✅ Download Complete. Starting Cut...`);
+            await pipeline(downloadRes.body, fs.createWriteStream(inputPath));
+            console.log("✅ Download complete.");
         } else {
             return res.status(400).json({ error: 'No file or videoUrl provided' });
         }
@@ -111,7 +117,7 @@ app.post('/api/cut-and-upload', upload.single('video'), async (req, res) => {
             .run();
 
     } catch (error) {
-        console.error('❌ Server Error:', error);
+        console.error("Cut API Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -149,6 +155,7 @@ app.post('/api/generate', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // 5. STATUS
 app.get('/api/status/:requestId', async (req, res) => {

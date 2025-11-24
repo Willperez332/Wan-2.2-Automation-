@@ -17,37 +17,49 @@ export class FalService {
     }
   }
 
-async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
-    // 1. Initialize Key
+  async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
     await this.initFal();
 
-    // FIX: Lower threshold to 10MB. 
-    // Anything larger than this will upload directly to Fal, bypassing the Server Proxy.
-    const isLargeFile = videoFile.size > 10 * 1024 * 1024; 
+    // FIX: Lower threshold to 1MB. 
+    // This forces almost ALL uploads to go to Fal directly, ensuring we never hit 
+    // the Proxy 413 limit on the server.
+    const isLargeFile = videoFile.size > 1 * 1024 * 1024; 
 
     if (isLargeFile) {
-        console.log(`📂 File is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB. Uploading directly to Fal to bypass proxy...`);
+        console.log(`📂 File is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB. Uploading directly to Fal...`);
         
-        // ... rest of the logic remains the same ...
-        const fullVideoUrl = await fal.storage.upload(videoFile);
-        
-        console.log("✅ Full video uploaded:", fullVideoUrl);
+        try {
+            // Direct upload to bypass Proxy
+            const fullVideoUrl = await fal.storage.upload(videoFile);
+            console.log("✅ Full video uploaded:", fullVideoUrl);
 
-        const response = await fetch('/api/cut-and-upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                videoUrl: fullVideoUrl,
-                startTime,
-                endTime
-            })
-        });
-        if (!response.ok) throw new Error("Server video cut failed");
-        const data = await response.json();
-        return data.url;
+            // Send JSON (URL) to server
+            // FIX: Corrected variable name and spacing here
+            const response = await fetch('/api/cut-and-upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    videoUrl: fullVideoUrl,
+                    startTime,
+                    endTime
+                })
+            });
+
+            if (!response.ok) {
+                 // FIX: Corrected spacing here
+                 const errText = await response.text();
+                 throw new Error(`Server video cut failed: ${response.status} ${errText}`);
+            }
+            
+            const data = await response.json();
+            return data.url;
+        } catch (e: any) {
+            console.error("Direct Upload Flow Failed:", e);
+            throw e;
+        }
 
     } else {
-        // ... keep existing small file logic ...
+        // ... (keep existing small file logic)
         const formData = new FormData();
         formData.append('video', videoFile);
         formData.append('startTime', startTime.toString());
