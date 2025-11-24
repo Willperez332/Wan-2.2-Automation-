@@ -66,7 +66,7 @@ export class FalService {
     }
   }
 
-  private async uploadImage(base64: string): Promise<string> {
+private async uploadImage(base64: string): Promise<string> {
      const response = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

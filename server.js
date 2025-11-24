@@ -3,7 +3,6 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as falModule from '@fal-ai/client';
-// Handle Fal import for different environments
 const fal = (falModule.default && falModule.default.fal) ? falModule.default.fal : (falModule.fal || falModule);
 import multer from 'multer';
 import fs from 'fs';
@@ -28,6 +27,7 @@ app.use((req, res, next) => {
     next();
 });
 
+// Increased limit to handle base64 image uploads
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist')));
@@ -97,8 +97,28 @@ app.post('/api/cut-and-upload', conditionalUpload, async (req, res) => {
     }
 });
 
-app.post('/api/upload', express.json({limit: '50mb'}), (req, res) => {
-    res.json({ url: "https://placeholder.com/image.jpg" });
+// FIX: Real Image Uploader
+app.post('/api/upload', async (req, res) => {
+    try {
+        const { base64Data } = req.body;
+        if (!base64Data) return res.status(400).json({ error: "No data" });
+
+        console.log("🖼️ Uploading Image to Fal...");
+
+        // Convert Base64 to Buffer
+        // Remove header if present (e.g., "data:image/jpeg;base64,")
+        const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const imageBuffer = Buffer.from(matches ? matches[2] : base64Data, 'base64');
+
+        // Upload Buffer to Fal
+        const url = await fal.storage.upload(imageBuffer);
+        
+        console.log("✅ Image Uploaded:", url);
+        res.json({ url });
+    } catch (e) {
+        console.error("Image Upload Error:", e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.post('/api/generate', async (req, res) => {
@@ -112,23 +132,18 @@ app.post('/api/generate', async (req, res) => {
     }
 });
 
-// FIX: Improved status route that fetches RESULT when complete
 app.get('/api/status/:requestId', async (req, res) => {
     try {
         const requestId = req.params.requestId;
         const model = req.query.model || "fal-ai/wan/v2.2-14b/animate/move";
         
-        // 1. Check Status
         const status = await fal.queue.status(model, { requestId, logs: true });
 
-        // 2. If Completed, fetch the actual Result (Video URL)
         if (status.status === 'COMPLETED') {
             const result = await fal.queue.result(model, { requestId });
-            // Merge status and result data so frontend gets everything
             return res.json({ ...status, ...result.data });
         }
 
-        // 3. Otherwise just return status (IN_QUEUE / IN_PROGRESS)
         res.json(status);
     } catch (e) {
         console.error("Status Check Error:", e);
