@@ -7,7 +7,9 @@ import * as falModule from '@fal-ai/client';
 const fal = (falModule.default && falModule.default.fal) ? falModule.default.fal : (falModule.fal || falModule);
 import multer from 'multer';
 import fs from 'fs';
-import { pipeline } from 'stream/promises'; 
+import { pipeline } from 'stream/promises';
+// FIX: This import was missing in the previous version
+import ffmpeg from 'fluent-ffmpeg';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,10 +46,10 @@ app.get('/api/auth/key', (req, res) => res.json({ key: process.env.FAL_API_KEY }
 const conditionalUpload = (req, res, next) => {
     const contentType = req.headers['content-type'];
     if (contentType && contentType.includes('application/json')) {
-        // Skip Multer for JSON requests
+        // Skip Multer for JSON requests (Large files bypass)
         return next();
     }
-    // Use Multer for Multipart requests
+    // Use Multer for Multipart requests (Small files)
     return upload.single('video')(req, res, next);
 };
 
@@ -73,12 +75,10 @@ app.post('/api/cut-and-upload', conditionalUpload, async (req, res) => {
             return res.status(400).json({ error: 'No file or videoUrl provided in request' });
         }
 
-// ... (inside the try block, replacing the Fake Logic section) ...
-
         console.log(`✂️ Cutting video from ${startTime}s to ${endTime}s...`);
         const outputPath = path.join(tempDir, `cut-${Date.now()}.mp4`);
 
-        // 1. Run FFmpeg
+        // 1. Run FFmpeg to cut the clip
         await new Promise((resolve, reject) => {
             ffmpeg(inputPath)
                 .setStartTime(startTime)
@@ -92,7 +92,6 @@ app.post('/api/cut-and-upload', conditionalUpload, async (req, res) => {
         console.log("✅ Cut complete. Uploading segment to Fal...");
 
         // 2. Upload the cut clip back to Fal (so Wan 2.2 can use it)
-        // We read the file into a buffer to upload it
         const fileBuffer = fs.readFileSync(outputPath);
         const cutUrl = await fal.storage.upload(fileBuffer);
         
@@ -109,16 +108,13 @@ app.post('/api/cut-and-upload', conditionalUpload, async (req, res) => {
         // 4. Return the NEW URL (the cut clip)
         res.json({ url: cutUrl });
 
-        // ... (end of try block) ...        
-        res.json({ url: videoUrl || "https://placeholder.url/video.mp4" });
-
     } catch (error) {
         console.error("Cut API Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ... (Keep your existing upload/generate/status routes below) ...
+// ... (Other routes) ...
 app.post('/api/upload', express.json({limit: '50mb'}), (req, res) => {
     // Placeholder for your existing image upload logic
     res.json({ url: "https://placeholder.com/image.jpg" });
