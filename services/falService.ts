@@ -17,17 +17,20 @@ export class FalService {
     }
   }
 
-  async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
+async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
     await this.initFal();
 
-    // FIX: Lower threshold to 1MB. 
-    // This forces almost ALL uploads to go to Fal directly, ensuring we never hit 
-    // the Proxy 413 limit on the server.
+    // --- DEBUG LOGS ---
+    const sizeMB = videoFile.size / 1024 / 1024;
+    console.log(`🔍 DEBUG: File size is ${sizeMB.toFixed(2)} MB`);
+    // ------------------
+
+    // 1MB Threshold
     const isLargeFile = videoFile.size > 1 * 1024 * 1024; 
+    console.log(`🔍 DEBUG: Is Large File? ${isLargeFile}`);
 
     if (isLargeFile) {
-        console.log(`📂 File is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB. Uploading directly to Fal...`);
-        
+        console.log("🚀 TAKING PATH A: Direct Upload to Fal (Bypassing Server Proxy)");
         try {
             // Direct upload to bypass Proxy
             const fullVideoUrl = await fal.storage.upload(videoFile);
