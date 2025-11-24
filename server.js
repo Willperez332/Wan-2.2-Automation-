@@ -112,13 +112,23 @@ app.post('/api/generate', async (req, res) => {
     }
 });
 
+// FIX: Improved status route that fetches RESULT when complete
 app.get('/api/status/:requestId', async (req, res) => {
     try {
         const requestId = req.params.requestId;
-        // FIX: Remove TypeScript casting 'as string' here
         const model = req.query.model || "fal-ai/wan/v2.2-14b/animate/move";
         
+        // 1. Check Status
         const status = await fal.queue.status(model, { requestId, logs: true });
+
+        // 2. If Completed, fetch the actual Result (Video URL)
+        if (status.status === 'COMPLETED') {
+            const result = await fal.queue.result(model, { requestId });
+            // Merge status and result data so frontend gets everything
+            return res.json({ ...status, ...result.data });
+        }
+
+        // 3. Otherwise just return status (IN_QUEUE / IN_PROGRESS)
         res.json(status);
     } catch (e) {
         console.error("Status Check Error:", e);

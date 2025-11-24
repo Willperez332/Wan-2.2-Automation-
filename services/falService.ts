@@ -77,17 +77,15 @@ export class FalService {
      return data.url;
   }
 
-  // FIX: Polling now includes Model ID and handles errors
   private async pollForVideo(requestId: string): Promise<string> {
     const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
     
     while (true) {
-        // FIX: Pass model as query param to fix 500 errors on backend
+        // Include model param for the server
         const response = await fetch(`/api/status/${requestId}?model=${encodeURIComponent(ModelType.WAN)}`);
         
         if (!response.ok) {
-            console.error("Polling Error:", response.statusText);
-            // Retry on server error instead of crashing, but wait longer
+            console.warn("Polling Server Error (Retrying...):", response.statusText);
             await delay(5000);
             continue;
         }
@@ -95,9 +93,11 @@ export class FalService {
         const status = await response.json();
 
         if (status.status === 'COMPLETED') {
+            // Server now fetches result for us, so video.url should be here
             if (status.video?.url) return status.video.url;
-            // Check for 'video' property first as per WAN documentation
-            if (status.output?.video?.url) return status.output.video.url; 
+            if (status.output?.video?.url) return status.output.video.url; // Fallback check
+            
+            console.error("Full Response:", status);
             throw new Error("Completed but no video URL found in response");
         }
         
@@ -105,14 +105,14 @@ export class FalService {
             throw new Error(status.error || "Generation Failed");
         }
         
-        // Wait 5 seconds between checks
+        // Wait 5 seconds (Reduced polling frequency)
         await delay(5000);
     }
   }
 
   async generateVideoFromImage(
     sourceImageBase64: string,
-    prompt: string, // Kept in signature but ignored in payload
+    prompt: string, 
     videoGuidanceUrl: string
   ): Promise<string> {
     let imageUrl = sourceImageBase64;
@@ -120,14 +120,14 @@ export class FalService {
         imageUrl = await this.uploadImage(`data:image/jpeg;base64,${sourceImageBase64}`);
     }
 
-    // FIX: Removed 'prompt' from input. 
-    // The 'animate/move' endpoint is Video+Image -> Video and does not accept prompts.
+    // FIX: Added 'prompt' back to satisfy 422 Validation Error
     const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: ModelType.WAN,
             input: {
+                prompt: prompt || "A cinematic shot", // Fallback prompt
                 image_url: imageUrl, 
                 video_url: videoGuidanceUrl,
                 video_quality: "high",
