@@ -14,7 +14,9 @@ export interface ProcessedClip {
 export interface WorkflowState {
   step: 'upload' | 'analyze' | 'review' | 'generate';
   originalVideo: File | null;
-  avatarImage: File | null;
+  // CHANGED: Split single avatar into two distinct states
+  standardAvatar: File | null;
+  productAvatar: File | null;
   productImage: File | null;
   geminiKey: string;
   falKey: string;
