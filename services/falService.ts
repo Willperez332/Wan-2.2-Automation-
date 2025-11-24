@@ -17,22 +17,22 @@ export class FalService {
     }
   }
 
-  async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
+async cutAndUploadVideo(videoFile: File, startTime: number, endTime: number): Promise<string> {
     // 1. Initialize Key
     await this.initFal();
 
-    // 2. Check File Size (100MB limit for proxy)
-    const isLargeFile = videoFile.size > 90 * 1024 * 1024; // 90MB buffer
+    // FIX: Lower threshold to 10MB. 
+    // Anything larger than this will upload directly to Fal, bypassing the Server Proxy.
+    const isLargeFile = videoFile.size > 10 * 1024 * 1024; 
 
     if (isLargeFile) {
-        console.log("📂 Large file detected. Uploading directly to Fal first...");
+        console.log(`📂 File is ${(videoFile.size / 1024 / 1024).toFixed(2)}MB. Uploading directly to Fal to bypass proxy...`);
         
-        // FIX: Use fal.storage
+        // ... rest of the logic remains the same ...
         const fullVideoUrl = await fal.storage.upload(videoFile);
         
         console.log("✅ Full video uploaded:", fullVideoUrl);
 
-        // Send URL to server to cut
         const response = await fetch('/api/cut-and-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -47,7 +47,7 @@ export class FalService {
         return data.url;
 
     } else {
-        // Standard Small File Upload (Client -> Server -> Fal)
+        // ... keep existing small file logic ...
         const formData = new FormData();
         formData.append('video', videoFile);
         formData.append('startTime', startTime.toString());
